@@ -53,13 +53,13 @@ init();
 
 function init() {
   fillSelect(elements.domainFilter, ["All", ...unique(QUESTION_BANK.map(q => q.domain))]);
-  fillSelect(elements.trapFilter, ["All", ...unique(QUESTION_BANK.map(q => getTrapFamily(q.trap)))]);
+  fillSelect(elements.trapFilter, ["All", ...unique(QUESTION_BANK.map(q => q.trapFamily || q.trap))]);
   fillSelect(elements.difficultyFilter, ["All", ...unique(QUESTION_BANK.map(q => q.difficulty))]);
 
-  [elements.domainFilter, elements.trapFilter, elements.difficultyFilter, elements.questionCount].forEach(element => {
-    element.addEventListener("change", updateAvailableHint);
-    element.addEventListener("input", updateAvailableHint);
+  [elements.domainFilter, elements.trapFilter, elements.difficultyFilter].forEach(el => {
+    el.addEventListener("change", updateAvailableHint);
   });
+  elements.questionCount.addEventListener("input", normalizeQuestionCount);
 
   renderAllTimeStats();
   renderPrinciples();
@@ -82,126 +82,31 @@ function unique(list) {
   return [...new Set(list)].sort((a, b) => a.localeCompare(b));
 }
 
-function getTrapFamily(trap) {
-  const rules = [
-    {
-      family: "Governance before speed",
-      includes: [
-        "Fix fast",
-        "Technical fix",
-        "Awareness",
-        "Risk register",
-        "Security owns everything",
-        "Full shutdown"
-      ]
-    },
-    {
-      family: "Evidence and containment first",
-      includes: [
-        "Analyze now",
-        "Restore speed",
-        "Jump to remediation",
-        "Root cause later",
-        "Backups exist"
-      ]
-    },
-    {
-      family: "Least privilege and lifecycle control",
-      includes: [
-        "Operational convenience",
-        "Access fast",
-        "Shared admin",
-        "Authentication strength",
-        "Faster deprovisioning"
-      ]
-    },
-    {
-      family: "Architecture and defense in depth",
-      includes: [
-        "Strongest control",
-        "Redundancy assumption",
-        "Segmented equals secure",
-        "Single control trust",
-        "Confidentiality focus"
-      ]
-    },
-    {
-      family: "Secure by design",
-      includes: [
-        "Deadline pressure",
-        "Patch later",
-        "Testing at the end",
-        "Scan clean"
-      ]
-    },
-    {
-      family: "Accountability and due diligence",
-      includes: [
-        "Ownership confusion",
-        "Vendor promise",
-        "business ownership"
-      ]
-    },
-    {
-      family: "Assessment and control effectiveness",
-      includes: [
-        "More findings",
-        "Compliance pass"
-      ]
-    },
-    {
-      family: "Data handling and recoverability",
-      includes: [
-        "Encrypt everything"
-      ]
-    }
-  ];
-
-  for (const rule of rules) {
-    if (rule.includes.some(token => trap.includes(token))) return rule.family;
-  }
-
-  return "Other trap patterns";
-}
-
-function filteredQuestions() {
-  return QUESTION_BANK.filter(q => {
-    const domainOk = elements.domainFilter.value === "All" || q.domain === elements.domainFilter.value;
-    const trapOk = elements.trapFilter.value === "All" || getTrapFamily(q.trap) === elements.trapFilter.value;
-    const diffOk = elements.difficultyFilter.value === "All" || q.difficulty === elements.difficultyFilter.value;
-    return domainOk && trapOk && diffOk;
-  });
-}
-
 function updateAvailableHint() {
-  const pool = filteredQuestions();
-  const maxQuestions = Math.max(1, pool.length);
-  elements.questionCount.max = String(Math.max(30, maxQuestions));
-
-  if (!pool.length) {
-    elements.availableHint.textContent = "No questions match this filter combination in the current sample bank.";
-    return;
-  }
-
-  const requested = normalizeRequestedCount(pool.length);
-  const message = `${pool.length} question${pool.length === 1 ? "" : "s"} available in this filter set. Session will use ${requested}.`;
-  elements.availableHint.textContent = message;
+  const available = filteredQuestions().length;
+  elements.questionCount.max = String(Math.max(1, available || QUESTION_BANK.length));
+  normalizeQuestionCount();
+  elements.availableHint.textContent = available
+    ? `${available} question${available === 1 ? "" : "s"} match the current filters.`
+    : "No questions match the current filters.";
 }
 
-function normalizeRequestedCount(poolLength) {
-  const requested = Number(elements.questionCount.value) || 10;
-  return Math.max(1, Math.min(requested, poolLength));
+function normalizeQuestionCount() {
+  const available = Math.max(1, filteredQuestions().length || QUESTION_BANK.length);
+  let value = Number(elements.questionCount.value) || 10;
+  value = Math.max(1, Math.min(value, available));
+  elements.questionCount.value = String(value);
 }
 
 function startSession() {
   const pool = filteredQuestions();
   if (!pool.length) {
-    alert("No questions match this filter combination in the current sample bank.");
+    alert("No questions match the selected filters.");
     return;
   }
 
-  const count = normalizeRequestedCount(pool.length);
-  state.sessionQuestions = buildSessionQuestions(pool, count);
+  const count = Math.max(1, Math.min(Number(elements.questionCount.value) || 10, pool.length));
+  state.sessionQuestions = shuffle([...pool]).slice(0, count).map(prepareQuestionForSession);
   state.currentIndex = 0;
   state.currentSelection = null;
   state.sessionResults = [];
@@ -213,39 +118,28 @@ function startSession() {
   renderQuestion();
 }
 
-function buildSessionQuestions(pool, count) {
-  const selected = shuffle([...pool]).slice(0, count);
-  const targetPositions = buildBalancedTargets(selected.length);
-  return selected.map((question, index) => prepareQuestion(question, targetPositions[index]));
+function filteredQuestions() {
+  return QUESTION_BANK.filter(q => {
+    const domainOk = elements.domainFilter.value === "All" || q.domain === elements.domainFilter.value;
+    const trapValue = q.trapFamily || q.trap;
+    const trapOk = elements.trapFilter.value === "All" || trapValue === elements.trapFilter.value;
+    const diffOk = elements.difficultyFilter.value === "All" || q.difficulty === elements.difficultyFilter.value;
+    return domainOk && trapOk && diffOk;
+  });
 }
 
-function buildBalancedTargets(count) {
-  const targets = [];
-  while (targets.length < count) {
-    targets.push(...shuffle([0, 1, 2, 3]));
-  }
-  return targets.slice(0, count);
-}
-
-function prepareQuestion(question, targetAnswerIndex) {
-  const correctOption = question.options[question.answer];
-  const wrongOptions = shuffle(question.options.filter((_, index) => index !== question.answer));
-  const displayOptions = [];
-  let wrongIndex = 0;
-
-  for (let index = 0; index < question.options.length; index += 1) {
-    if (index === targetAnswerIndex) {
-      displayOptions.push(correctOption);
-    } else {
-      displayOptions.push(wrongOptions[wrongIndex]);
-      wrongIndex += 1;
-    }
-  }
+function prepareQuestionForSession(question) {
+  const indices = question.options.map((_, idx) => idx);
+  shuffle(indices);
+  const options = indices.map(idx => question.options[idx]);
+  const answer = indices.indexOf(question.answer);
 
   return {
     ...question,
-    displayOptions,
-    displayAnswer: targetAnswerIndex,
+    displayTrap: question.trapFamily || question.trap,
+    options,
+    answer,
+    originalAnswerIndex: question.answer,
   };
 }
 
@@ -256,18 +150,18 @@ function renderQuestion() {
   const wrongCount = state.sessionResults.length - correctCount;
 
   elements.progressLabel.textContent = `Question ${state.currentIndex + 1} of ${total}`;
-  elements.progressBar.style.width = `${((state.currentIndex) / total) * 100}%`;
+  elements.progressBar.style.width = `${(state.currentIndex / total) * 100}%`;
   elements.sessionCorrect.textContent = `${correctCount} correct`;
   elements.sessionWrong.textContent = `${wrongCount} missed`;
   elements.domainBadge.textContent = q.domain;
-  elements.trapBadge.textContent = `${getTrapFamily(q.trap)} · ${q.trap}`;
+  elements.trapBadge.textContent = q.displayTrap;
   elements.difficultyBadge.textContent = q.difficulty;
   elements.questionStem.textContent = q.stem;
   elements.feedback.className = "feedback hidden";
   elements.nextBtn.disabled = true;
   elements.options.innerHTML = "";
 
-  q.displayOptions.forEach((option, index) => {
+  q.options.forEach((option, index) => {
     const button = document.createElement("button");
     button.className = "option";
     button.innerHTML = `<strong>${String.fromCharCode(65 + index)}.</strong> ${escapeHtml(option)}`;
@@ -280,12 +174,12 @@ function evaluateAnswer(index) {
   if (state.currentSelection !== null) return;
   const q = state.sessionQuestions[state.currentIndex];
   state.currentSelection = index;
-  const correct = index === q.displayAnswer;
+  const correct = index === q.answer;
 
   [...elements.options.children].forEach((button, idx) => {
     button.classList.add("locked");
-    if (idx === q.displayAnswer) button.classList.add("correct");
-    if (idx === index && idx !== q.displayAnswer) button.classList.add("incorrect");
+    if (idx === q.answer) button.classList.add("correct");
+    if (idx === index && idx !== q.answer) button.classList.add("incorrect");
   });
 
   const result = { id: q.id, correct, selected: index };
@@ -341,8 +235,7 @@ function endSession() {
           <article class="review-item">
             <p><strong>${escapeHtml(q.stem)}</strong></p>
             <p><strong>Correct answer:</strong> ${escapeHtml(q.options[q.answer])}</p>
-            <p><strong>Trap family:</strong> ${escapeHtml(getTrapFamily(q.trap))}</p>
-            <p><strong>Trap detail:</strong> ${escapeHtml(q.trap)}</p>
+            <p><strong>Trap family:</strong> ${escapeHtml(q.trapFamily || q.trap)}</p>
             <p><strong>Principle:</strong> ${escapeHtml(q.principle)}</p>
           </article>
         `;
@@ -375,11 +268,11 @@ function renderPrinciples() {
 
   if (!weakQuestions.length) {
     elements.principlesList.innerHTML = `
-      <li>Classify first, then control.</li>
-      <li>Preserve evidence before deep analysis.</li>
-      <li>Right-sized control beats strongest control.</li>
-      <li>Risk ownership belongs with the business.</li>
-      <li>Prove effectiveness, not just activity.</li>
+      <li>Classify and assign ownership before selecting controls.</li>
+      <li>Reduce standing privilege and scope access to the task.</li>
+      <li>Preserve evidentiary integrity before deeper analysis.</li>
+      <li>Reduce blast radius before broad restoration.</li>
+      <li>Choose controls based on risk and fit, not maximum strength.</li>
     `;
     return;
   }
@@ -437,7 +330,7 @@ function exportProgress() {
 }
 
 function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i -= 1) {
+  for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
