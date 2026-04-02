@@ -119,6 +119,14 @@ button.danger {
   background: #3f1113;
 }
 
+
+.filter-hint {
+  margin: -0.2rem 0 1rem;
+  color: var(--accent-2);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
 .button-row {
   display: flex;
   gap: 0.75rem;

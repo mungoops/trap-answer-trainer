@@ -1,4 +1,4 @@
-const STORAGE_KEY = "trap-answer-trainer-progress-v1";
+const STORAGE_KEY = "trap-answer-trainer-progress-v2";
 
 const state = {
   sessionQuestions: [],
@@ -13,6 +13,7 @@ const elements = {
   domainFilter: document.getElementById("domainFilter"),
   trapFilter: document.getElementById("trapFilter"),
   difficultyFilter: document.getElementById("difficultyFilter"),
+  availableHint: document.getElementById("availableHint"),
   startBtn: document.getElementById("startBtn"),
   reshuffleBtn: document.getElementById("reshuffleBtn"),
   exportBtn: document.getElementById("exportBtn"),
@@ -52,10 +53,17 @@ init();
 
 function init() {
   fillSelect(elements.domainFilter, ["All", ...unique(QUESTION_BANK.map(q => q.domain))]);
-  fillSelect(elements.trapFilter, ["All", ...unique(QUESTION_BANK.map(q => q.trap))]);
+  fillSelect(elements.trapFilter, ["All", ...unique(QUESTION_BANK.map(q => getTrapFamily(q.trap)))]);
   fillSelect(elements.difficultyFilter, ["All", ...unique(QUESTION_BANK.map(q => q.difficulty))]);
+
+  [elements.domainFilter, elements.trapFilter, elements.difficultyFilter, elements.questionCount].forEach(element => {
+    element.addEventListener("change", updateAvailableHint);
+    element.addEventListener("input", updateAvailableHint);
+  });
+
   renderAllTimeStats();
   renderPrinciples();
+  updateAvailableHint();
 
   elements.startBtn.addEventListener("click", startSession);
   elements.reshuffleBtn.addEventListener("click", startSession);
@@ -74,15 +82,126 @@ function unique(list) {
   return [...new Set(list)].sort((a, b) => a.localeCompare(b));
 }
 
-function startSession() {
+function getTrapFamily(trap) {
+  const rules = [
+    {
+      family: "Governance before speed",
+      includes: [
+        "Fix fast",
+        "Technical fix",
+        "Awareness",
+        "Risk register",
+        "Security owns everything",
+        "Full shutdown"
+      ]
+    },
+    {
+      family: "Evidence and containment first",
+      includes: [
+        "Analyze now",
+        "Restore speed",
+        "Jump to remediation",
+        "Root cause later",
+        "Backups exist"
+      ]
+    },
+    {
+      family: "Least privilege and lifecycle control",
+      includes: [
+        "Operational convenience",
+        "Access fast",
+        "Shared admin",
+        "Authentication strength",
+        "Faster deprovisioning"
+      ]
+    },
+    {
+      family: "Architecture and defense in depth",
+      includes: [
+        "Strongest control",
+        "Redundancy assumption",
+        "Segmented equals secure",
+        "Single control trust",
+        "Confidentiality focus"
+      ]
+    },
+    {
+      family: "Secure by design",
+      includes: [
+        "Deadline pressure",
+        "Patch later",
+        "Testing at the end",
+        "Scan clean"
+      ]
+    },
+    {
+      family: "Accountability and due diligence",
+      includes: [
+        "Ownership confusion",
+        "Vendor promise",
+        "business ownership"
+      ]
+    },
+    {
+      family: "Assessment and control effectiveness",
+      includes: [
+        "More findings",
+        "Compliance pass"
+      ]
+    },
+    {
+      family: "Data handling and recoverability",
+      includes: [
+        "Encrypt everything"
+      ]
+    }
+  ];
+
+  for (const rule of rules) {
+    if (rule.includes.some(token => trap.includes(token))) return rule.family;
+  }
+
+  return "Other trap patterns";
+}
+
+function filteredQuestions() {
+  return QUESTION_BANK.filter(q => {
+    const domainOk = elements.domainFilter.value === "All" || q.domain === elements.domainFilter.value;
+    const trapOk = elements.trapFilter.value === "All" || getTrapFamily(q.trap) === elements.trapFilter.value;
+    const diffOk = elements.difficultyFilter.value === "All" || q.difficulty === elements.difficultyFilter.value;
+    return domainOk && trapOk && diffOk;
+  });
+}
+
+function updateAvailableHint() {
   const pool = filteredQuestions();
+  const maxQuestions = Math.max(1, pool.length);
+  elements.questionCount.max = String(Math.max(30, maxQuestions));
+
   if (!pool.length) {
-    alert("No questions match the selected filters.");
+    elements.availableHint.textContent = "No questions match this filter combination in the current sample bank.";
     return;
   }
 
-  const count = Math.max(5, Math.min(Number(elements.questionCount.value) || 10, pool.length));
-  state.sessionQuestions = shuffle([...pool]).slice(0, count);
+  const requested = normalizeRequestedCount(pool.length);
+  const message = `${pool.length} question${pool.length === 1 ? "" : "s"} available in this filter set. Session will use ${requested}.`;
+  elements.availableHint.textContent = message;
+}
+
+function normalizeRequestedCount(poolLength) {
+  const requested = Number(elements.questionCount.value) || 10;
+  return Math.max(1, Math.min(requested, poolLength));
+}
+
+function startSession() {
+  const pool = filteredQuestions();
+  if (!pool.length) {
+    alert("No questions match this filter combination in the current sample bank.");
+    return;
+  }
+
+  const count = normalizeRequestedCount(pool.length);
+  state.sessionQuestions = buildSessionQuestions(pool, count);
   state.currentIndex = 0;
   state.currentSelection = null;
   state.sessionResults = [];
@@ -94,13 +213,40 @@ function startSession() {
   renderQuestion();
 }
 
-function filteredQuestions() {
-  return QUESTION_BANK.filter(q => {
-    const domainOk = elements.domainFilter.value === "All" || q.domain === elements.domainFilter.value;
-    const trapOk = elements.trapFilter.value === "All" || q.trap === elements.trapFilter.value;
-    const diffOk = elements.difficultyFilter.value === "All" || q.difficulty === elements.difficultyFilter.value;
-    return domainOk && trapOk && diffOk;
-  });
+function buildSessionQuestions(pool, count) {
+  const selected = shuffle([...pool]).slice(0, count);
+  const targetPositions = buildBalancedTargets(selected.length);
+  return selected.map((question, index) => prepareQuestion(question, targetPositions[index]));
+}
+
+function buildBalancedTargets(count) {
+  const targets = [];
+  while (targets.length < count) {
+    targets.push(...shuffle([0, 1, 2, 3]));
+  }
+  return targets.slice(0, count);
+}
+
+function prepareQuestion(question, targetAnswerIndex) {
+  const correctOption = question.options[question.answer];
+  const wrongOptions = shuffle(question.options.filter((_, index) => index !== question.answer));
+  const displayOptions = [];
+  let wrongIndex = 0;
+
+  for (let index = 0; index < question.options.length; index += 1) {
+    if (index === targetAnswerIndex) {
+      displayOptions.push(correctOption);
+    } else {
+      displayOptions.push(wrongOptions[wrongIndex]);
+      wrongIndex += 1;
+    }
+  }
+
+  return {
+    ...question,
+    displayOptions,
+    displayAnswer: targetAnswerIndex,
+  };
 }
 
 function renderQuestion() {
@@ -114,14 +260,14 @@ function renderQuestion() {
   elements.sessionCorrect.textContent = `${correctCount} correct`;
   elements.sessionWrong.textContent = `${wrongCount} missed`;
   elements.domainBadge.textContent = q.domain;
-  elements.trapBadge.textContent = q.trap;
+  elements.trapBadge.textContent = `${getTrapFamily(q.trap)} · ${q.trap}`;
   elements.difficultyBadge.textContent = q.difficulty;
   elements.questionStem.textContent = q.stem;
   elements.feedback.className = "feedback hidden";
   elements.nextBtn.disabled = true;
   elements.options.innerHTML = "";
 
-  q.options.forEach((option, index) => {
+  q.displayOptions.forEach((option, index) => {
     const button = document.createElement("button");
     button.className = "option";
     button.innerHTML = `<strong>${String.fromCharCode(65 + index)}.</strong> ${escapeHtml(option)}`;
@@ -134,12 +280,12 @@ function evaluateAnswer(index) {
   if (state.currentSelection !== null) return;
   const q = state.sessionQuestions[state.currentIndex];
   state.currentSelection = index;
-  const correct = index === q.answer;
+  const correct = index === q.displayAnswer;
 
   [...elements.options.children].forEach((button, idx) => {
     button.classList.add("locked");
-    if (idx === q.answer) button.classList.add("correct");
-    if (idx === index && idx !== q.answer) button.classList.add("incorrect");
+    if (idx === q.displayAnswer) button.classList.add("correct");
+    if (idx === index && idx !== q.displayAnswer) button.classList.add("incorrect");
   });
 
   const result = { id: q.id, correct, selected: index };
@@ -195,7 +341,8 @@ function endSession() {
           <article class="review-item">
             <p><strong>${escapeHtml(q.stem)}</strong></p>
             <p><strong>Correct answer:</strong> ${escapeHtml(q.options[q.answer])}</p>
-            <p><strong>Trap type:</strong> ${escapeHtml(q.trap)}</p>
+            <p><strong>Trap family:</strong> ${escapeHtml(getTrapFamily(q.trap))}</p>
+            <p><strong>Trap detail:</strong> ${escapeHtml(q.trap)}</p>
             <p><strong>Principle:</strong> ${escapeHtml(q.principle)}</p>
           </article>
         `;
@@ -290,7 +437,7 @@ function exportProgress() {
 }
 
 function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i--) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
