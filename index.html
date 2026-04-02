@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trap Answer Trainer</title>
+  <title>Trap Answer Trainer Sample</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="hero">
     <div>
       <p class="eyebrow">Cybersecurity certification judgment trainer</p>
-      <h1>Trap Answer Trainer</h1>
-      <p class="subtitle">Train the skill that misses questions: rejecting the attractive-but-wrong answer.</p>
+      <h1>Trap Answer Trainer · Sample</h1>
+      <p class="subtitle">Public sample build. Train the skill that misses questions: rejecting the attractive-but-wrong answer.</p>
     </div>
     <div class="hero-meta">
       <div class="pill">Static web app</div>
-      <div class="pill">Offline-ready</div>
+      <div class="pill">16-question sample</div>
       <div class="pill">Local progress</div>
     </div>
   </header>
@@ -25,7 +25,7 @@
       <h2>Session setup</h2>
       <label>
         Question count
-        <input id="questionCount" type="number" min="1" max="96" step="1" value="10" />
+        <input id="questionCount" type="number" min="1" max="16" step="1" value="8" />
       </label>
 
       <p id="availableHint" class="filter-hint"></p>
@@ -77,7 +77,7 @@
     <section class="panel quiz-panel">
       <div id="emptyState" class="empty-state">
         <h2>Ready to drill</h2>
-        <p>Choose your filters and start a session. This build focuses on scenario judgment, not fact memorization.</p>
+        <p>Choose your filters and start a session. This public sample includes 16 questions across the eight domains and focuses on scenario judgment, not fact memorization.</p>
       </div>
 
       <div id="quizState" class="hidden">
@@ -117,6 +117,7 @@
 
       <div id="summaryState" class="hidden summary-state">
         <h2>Session summary</h2>
+        <p class="summary-note">This public sample is intentionally limited. The premium build contains the full bank and deeper review coverage.</p>
         <div class="summary-grid">
           <div><span class="stat-label">Score</span><strong id="summaryScore"></strong></div>
           <div><span class="stat-label">Correct</span><strong id="summaryCorrect"></strong></div>
@@ -134,7 +135,7 @@
   </main>
 
   <footer class="footer">
-    <p>This product is independently developed and is not affiliated with, endorsed by, sponsored by, or approved by ISC2. ISC2 and related certification names and marks are the property of ISC2, Inc. No Official ISC2 Courseware or exam vouchers are included.</p>
+    <p>This product is independently developed and is not affiliated with, endorsed by, sponsored by, or approved by ISC2. ISC2 and related certification names and marks are the property of ISC2, Inc. No Official ISC2 Courseware or exam vouchers are included. This public sample is for demonstration and evaluation only.</p>
   </footer>
 
   <script src="questions.js"></script>
