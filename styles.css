@@ -279,3 +279,30 @@ button.danger {
 
 
 .summary-note { margin: 0 0 1rem; color: #4b5563; }
+
+
+.cta-card {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.cta-card.compact {
+  margin-top: 0.5rem;
+}
+
+.cta-title {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+}
+
+.cta-copy {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+}
+
+.filter-hint.limit {
+  color: #fbbf24;
+}

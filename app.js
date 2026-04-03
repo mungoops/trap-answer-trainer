@@ -1,3 +1,4 @@
+const PREMIUM_URL = "https://mungoops.gumroad.com/l/qbseu";
 const STORAGE_KEY = "trap-answer-trainer-progress-v2";
 
 const state = {
@@ -47,12 +48,13 @@ const elements = {
   accuracyStat: document.getElementById("accuracyStat"),
   missedStat: document.getElementById("missedStat"),
   principlesList: document.getElementById("principlesList"),
+  emptyPremiumBtn: document.getElementById("emptyPremiumBtn"),
+  summaryPremiumBtn: document.getElementById("summaryPremiumBtn"),
 };
 
 init();
 
 function init() {
-  showReadyState();
   fillSelect(elements.domainFilter, ["All", ...unique(QUESTION_BANK.map(q => q.domain))]);
   fillSelect(elements.trapFilter, ["All", ...unique(QUESTION_BANK.map(q => q.trapFamily || q.trap))]);
   fillSelect(elements.difficultyFilter, ["All", ...unique(QUESTION_BANK.map(q => q.difficulty))]);
@@ -73,6 +75,8 @@ function init() {
   elements.restartBtn.addEventListener("click", startSession);
   elements.exportBtn.addEventListener("click", exportProgress);
   elements.resetBtn.addEventListener("click", resetProgress);
+  elements.emptyPremiumBtn?.addEventListener("click", openPremium);
+  elements.summaryPremiumBtn?.addEventListener("click", openPremium);
 }
 
 function fillSelect(select, values) {
@@ -87,9 +91,13 @@ function updateAvailableHint() {
   const available = filteredQuestions().length;
   elements.questionCount.max = String(Math.max(1, available || QUESTION_BANK.length));
   normalizeQuestionCount();
-  elements.availableHint.textContent = available
-    ? `${available} sample question${available === 1 ? "" : "s"} match the current filters.`
-    : "No sample questions match these filters. Reset filters to keep practicing here, or use the full bank for broader coverage.";
+  if (available) {
+    elements.availableHint.classList.remove("limit");
+    elements.availableHint.textContent = `${available} question${available === 1 ? "" : "s"} match the current filters.`;
+  } else {
+    elements.availableHint.classList.add("limit");
+    elements.availableHint.textContent = "This filter combination is not in the free sample. Reset your filters to keep practicing here, or unlock premium for broader coverage.";
+  }
 }
 
 function normalizeQuestionCount() {
@@ -102,7 +110,7 @@ function normalizeQuestionCount() {
 function startSession() {
   const pool = filteredQuestions();
   if (!pool.length) {
-    showNoMatchState();
+    alert("This filter combination is not in the free sample. Reset your filters to continue here, or unlock premium for broader coverage.");
     return;
   }
 
@@ -117,24 +125,6 @@ function startSession() {
   elements.quizState.classList.remove("hidden");
 
   renderQuestion();
-}
-
-function showReadyState() {
-  elements.emptyState.innerHTML = `
-    <h2>Ready to drill</h2>
-    <p>Choose your filters and start a session. This public sample includes 16 questions across the eight domains and focuses on scenario judgment, not fact memorization.</p>
-  `;
-}
-
-function showNoMatchState() {
-  elements.quizState.classList.add("hidden");
-  elements.summaryState.classList.add("hidden");
-  elements.emptyState.classList.remove("hidden");
-  elements.emptyState.innerHTML = `
-    <h2>This filter combination is not in the free sample</h2>
-    <p>This public sample is intentionally small. Reset your filters to keep practicing here, or move to the full bank for broader domain and trap-family coverage.</p>
-    <p><strong>Tip:</strong> Choose <em>All</em> for Trap family or Domain to continue the sample without losing momentum.</p>
-  `;
 }
 
 function filteredQuestions() {
@@ -363,4 +353,9 @@ function escapeHtml(text) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+
+function openPremium() {
+  window.open(PREMIUM_URL, "_blank", "noopener,noreferrer");
 }
